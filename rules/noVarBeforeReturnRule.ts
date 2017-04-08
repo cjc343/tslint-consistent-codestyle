@@ -3,31 +3,29 @@ import * as Lint from 'tslint';
 import * as utils from 'tsutils';
 
 import { isUndefined } from '../src/utils';
-import { AbstractReturnStatementWalker } from '../src/walker';
 
 export class Rule extends Lint.Rules.AbstractRule {
     public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {
-        return this.applyWithWalker(new ReturnWalker(sourceFile, this.ruleName, undefined));
+        return this.applyWithFunction(sourceFile, walk);
     }
 }
 
-class ReturnWalker extends AbstractReturnStatementWalker<void> {
-    protected _checkReturnStatement(node: ts.ReturnStatement) {
-        if (node.expression !== undefined && utils.isIdentifier(node.expression)) {
+function walk(ctx: Lint.WalkContext<void>) {
+    for (const node of utils.flattenAst(ctx.sourceFile))
+        if (utils.isReturnStatement(node) && node.expression !== undefined && utils.isIdentifier(node.expression)) {
             const statement = utils.getPreviousStatement(node);
             if (statement !== undefined && utils.isVariableStatement(statement)) {
                 const declarations = statement.declarationList.declarations;
                 const lastDeclaration = declarations[declarations.length - 1].name;
                 if (utils.isIdentifier(lastDeclaration)) {
                     if (lastDeclaration.text !== node.expression.text)
-                        return;
+                        continue;
                 } else if (!isSimpleDestructuringForName(lastDeclaration, node.expression.text)) {
-                    return;
+                    continue;
                 }
-                this.addFailureAtNode(node.expression, `don't declare variable ${node.expression.text} to return it immediately`);
+                ctx.addFailureAtNode(node.expression, `don't declare variable ${node.expression.text} to return it immediately`);
             }
         }
-    }
 }
 
 function isSimpleDestructuringForName(pattern: ts.BindingPattern, name: string): boolean {

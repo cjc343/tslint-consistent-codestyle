@@ -1,22 +1,21 @@
 import * as ts from 'typescript';
 import * as Lint from 'tslint';
 import * as utils from 'tsutils';
-import { AbstractIfStatementWalker } from '../src/walker';
 import { isElseIf } from '../src/utils';
 
 const FAIL_MESSAGE = `unnecessary else`;
 
 export class Rule extends Lint.Rules.AbstractRule {
     public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {
-        return this.applyWithWalker(new IfWalker(sourceFile, this.ruleName, undefined));
+        return this.applyWithFunction(sourceFile, walk);
     }
 }
 
-class IfWalker extends AbstractIfStatementWalker<void> {
-    protected _checkIfStatement(node: ts.IfStatement) {
-        if (node.elseStatement !== undefined &&
+function walk(ctx: Lint.WalkContext<void>) {
+    for (const node of utils.flattenAst(ctx.sourceFile))
+        if (utils.isIfStatement(node) &&
+            node.elseStatement !== undefined &&
             !isElseIf(node) &&
             utils.endsControlFlow(node.thenStatement))
-            this.addFailureAtNode(utils.getChildOfKind(node, ts.SyntaxKind.ElseKeyword, this.sourceFile)!, FAIL_MESSAGE);
-    }
+            ctx.addFailureAt(node.elseStatement.pos - 4, 4, FAIL_MESSAGE);
 }

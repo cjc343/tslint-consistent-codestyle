@@ -12,12 +12,9 @@ export class Rule extends Lint.Rules.AbstractRule {
 
 export class AsExpressionWalker extends Lint.AbstractWalker<void> {
     public walk(sourceFile: ts.SourceFile) {
-        const cb = (node: ts.Node): void => {
+        for (const node of utils.flattenAst(sourceFile))
             if (node.kind === ts.SyntaxKind.AsExpression)
                 this._reportError(<ts.AsExpression>node);
-            return ts.forEachChild(node, cb);
-        };
-        return ts.forEachChild(sourceFile, cb);
     }
 
     private _reportError(node: ts.AsExpression) {

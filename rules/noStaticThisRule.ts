@@ -11,25 +11,28 @@ export class Rule extends Lint.Rules.AbstractRule {
 }
 
 function walk(ctx: Lint.WalkContext<void>) {
-    const stack: boolean[] = [];
-    let current = false;
-    const cb = (child: ts.Node) => {
-        const boundary = utils.isScopeBoundary(child);
-        if (boundary) {
-            stack.push(current);
-            if (!current || utils.hasOwnThisReference(child))
-                current = isStatic(child);
+    let checking = false;
+    return utils.wrapAst(ctx.sourceFile).children.forEach(function cb({node, children}) {
+        if (checking) {
+            if (node.kind === ts.SyntaxKind.ThisKeyword)
+                return ctx.addFailureAtNode(node, FAIL_MESSAGE);
+            if (utils.hasOwnThisReference(node)) {
+                checking = false;
+                children.forEach(cb);
+                checking = true;
+                return;
+            }
+        } else if (isStaticMethod(node)) {
+            checking = true;
+            children.forEach(cb);
+            checking = false;
+            return;
         }
-        if (current && child.kind === ts.SyntaxKind.ThisKeyword)
-            ctx.addFailureAtNode(child, FAIL_MESSAGE);
-        ts.forEachChild(child, cb);
-        if (boundary)
-            current = stack.pop()!;
-    };
-    return ts.forEachChild(ctx.sourceFile, cb);
+        return children.forEach(cb);
+    });
 }
 
-function isStatic(node: ts.Node): boolean {
+function isStaticMethod(node: ts.Node): boolean {
     return (node.kind === ts.SyntaxKind.MethodDeclaration ||
             node.kind === ts.SyntaxKind.GetAccessor ||
             node.kind === ts.SyntaxKind.SetAccessor) &&
